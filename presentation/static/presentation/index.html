@@ -1,0 +1,438 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Snakes in the Cloud: Deploying Django Mezzanine on Heroku and S3</title>
+    <meta name="description" content="Snakes in the Cloud: Deploying Django Mezzanine on Heroku and S3">
+    <meta name="author" content="Aleksandr Vladimirskiy">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <link rel="stylesheet" href="css/reveal.min.css">
+    <link rel="stylesheet" href="css/theme/default.css" id="theme">
+    <link rel="stylesheet" href="lib/css/zenburn.css">
+    <script>
+      document.write( '<link rel="stylesheet" href="css/print/' + ( window.location.search.match( /print-pdf/gi ) ? 'pdf' : 'paper' ) + '.css" type="text/css" media="print">' );
+    </script>
+    <!--[if lt IE 9]>
+    <script src="lib/js/html5shiv.js"></script>
+    <![endif]-->
+    <style type="text/css">
+      strong {
+        color: red;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="reveal">
+      <div class="slides">
+        <section>
+          <h1>Snakes in the Cloud</h1>
+          <h3>Django Mezzanine, South <br>&amp; Debug Toolbar<br>on Heroku and Amazon S3</h3>
+          <p>WiFi: GetEastBayPride</p>
+        </section>
+        <section>
+          <h1>Given</h1>
+          <pre><code>
+            $: pip install virtualenvwrapper
+            $: source virtualenvwrapper.sh
+            $: mkvirtualenv freesnakes
+          </code></pre>
+        </section>
+        <section>
+          <section>
+            <h1>Mezzanine</h1>
+            <blockquote>Mezzanine is a powerful, consistent, and flexible content management platform. Built using the Django framework, Mezzanine provides a <strong>simple</strong> yet <strong>highly extensible</strong> architecture that encourages diving in and hacking on the code.</blockquote>
+            <p><a href="http://mezzanine.jupo.org/">http://mezzanine.jupo.org/</a></p>
+          </section>
+          <section>
+            <h2>Installation</h2>
+            <pre><code>
+              $: pip install Mezzanine
+              &hellip; (deactivate and activate!) &hellip;
+              $: mezzanine-project freesnakes
+              $: cd freesnakes
+              $: python manage.py createdb --noinput
+              $: python manage.py runserver
+            </code></pre>
+          </section>
+          <section>
+            <h1>Extensible</h1>
+            <p>Inherit from Page model</p>
+            <pre><code>
+              from mezzanine.pages.models import Page
+              from mezzanine.core.fields import RichTextField
+
+              class CustomPage(Page):
+                  content = RichTextField(blank=True)
+            </code></pre>
+          </section>
+          <section>
+            <h1>Page API</h1>
+            <pre><code>
+              >>> page.custompage.content
+            </code></pre>
+          </section>
+          <section>
+            <h1>Customizable</h1>
+            <h2>Templates</h2>
+            <pre><code>
+              $: python manage.py collecttemplates
+            </code></pre>
+          </section>
+          <section>
+            <h1>Content type</h1>
+            <pre><code>
+              templates/pages/custompage.html
+            </code></pre>
+          </section>
+          <section>
+            <h1>Specific URL</h1>
+            <pre><code>
+              http://example.org/custom/path/
+
+              templates/pages/custom/path.html
+            </code></pre>
+          </section>
+          <section>
+            <h1>Menus</h1>
+            <p>In base.html</p>
+            <pre><code>
+              <!-- First template: perhaps base.html, or an include file -->
+              {% load pages_tags %}
+              {% page_menu "pages/menus/my_menu.html" %}
+            </code></pre>
+          </section>
+          <section>
+            <h1>Menus</h1>
+            <p>In menu.html</p>
+            <pre><code>
+              <!-- Second template: pages/menus/my_menu.html -->
+              {% load pages_tags %}
+              {% for page in page_branch %}
+              <a href="{{ page.get_absolute_url }}">{{ page.title }}</a>
+              {% page_menu page %}
+              {% endfor %}
+            </code></pre>
+          </section>
+          <section>
+            <h1>Advanced Topics</h1>
+            <ul>
+              <li>Inline editing</li>
+              <li>Overriding vs. Extending</li>
+              <li>Processors</li>
+              <li>Permissions</li>
+            </ul>
+          </section>
+          <section>
+            <h1>Customizable</h1>
+            <h2>CSS/JavaScript</h2>
+            <p>Uses Twitter Bootstrap</p>
+            <p><a href="http://twitter.github.com/bootstrap/">http://twitter.github.com/bootstrap/</a></p>
+          </section>
+          <section>
+            <h1>Pro</h1>
+            <ul>
+              <li>Fixed/Fluid Grid System</li>
+              <li>Responsive Layout</li>
+              <li>Base style for HTML elements</li>
+              <li>UI/UX Components</li>
+              <li>LESS</li>
+            </ul>
+          </section>
+          <section>
+            <h1>Con</h1>
+            <p>All of the above make it easy to do simple customizations, hard to build complex designs with.</p>
+            <p>Easy to discard and build with own front-end framework.</p>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h1>South</h1>
+            <p><a href="http://south.aeracode.org/">http://south.aeracode.org/</a></p>
+            <pre><code>
+              $: pip install South
+            </code></pre>
+          </section>
+          <section>
+            <p>Schema migrations change the layout of columns and indexes.</p>
+            <p>Data migrations change the data stored to match changes in schema.</p>
+          </section>
+          <section>
+            <h2>Schema Migrations</h2>
+            <ol>
+              <li>Create an app</li>
+              <li>Add a model</li>
+              <li>Convert to South</li>
+              <li>Add fields to model</li>
+              <li>Create a migration</li>
+              <li>Migrate</li>
+            </ol>
+            <p>Repeat steps 4-6.</p>
+          </section>
+          <section>
+            <h2>Data migrations</h2>
+            <ol>
+              <li>Given a field</li>
+              <li>Define a new field</li>
+              <li>Add a data migration to copy and manipulate data between fields</li>
+              <li>Remove the original field</li>
+            </ol>
+          </section>
+          <section>
+            <h2>Zero migration</h2>
+            <p>Reset your app by migrating to zero.</p>
+            <p>Useful to clear development migrations before shipping.</p>
+          </section>
+          <section>
+            <h2>Dependencies</h2>
+            <p>Sooner than later, you'll<br>depend on other apps.</p>
+            <p>Apps are migrated in the order they're listed in INSTALLED_APPS in settings.py</p>
+            <p>In order to explicitly depend on an app and migration, declare the dependency.</p>
+          </section>
+          <section>
+            <h2>Dependency</h2>
+            <pre><code>
+              class Migration:
+                  depends_on = (
+                      ("accounts", "0003_add_user_profile"),
+                  )
+                  def forwards(self):
+                      &hellip;
+            </code></pre>
+          </section>
+          <section>
+            <h2>Reverse Dependency</h2>
+            <pre><code>
+              class Migration:
+                  needed_by = (
+                      ("accounts", "0005_make_fks"),
+                  )
+                  def forwards(self):
+                      &hellip;
+            </code></pre>
+          </section>
+          <section>
+            <h2>Advanced Topics</h2>
+            <ul>
+              <li>Custom fields</li>
+              <li>Team workflow</li>
+            </ul>
+          </section>
+        </section>
+        <section>
+          <section>
+            <h1>Debug Toolbar</h1>
+            <blockquote>
+              A configurable set of panels that display various debug information about the current request/response.
+            </blockquote>
+            <p><a href="https://github.com/django-debug-toolbar/django-debug-toolbar">https://github.com/django-debug-toolbar/django-debug-toolbar</a></p>
+          </section>
+          <section>
+            <pre><code>
+              $: pip install django-debug-toolbar
+            </code></pre>
+          </section>
+        </section>
+        <section>
+          <h1>Warning</h1>
+          <p>The following sections of the presentations are hacks.</p>
+        </section>
+        <section>
+          <section>
+            <h1>Amazon S3</h1>
+            <ul>
+              <li>Simple Storage Service</li>
+              <li>$0.095 per GB per month</li>
+              <li>Organized into "buckets"</li>
+              <li>Other strategies require a lot more configuration, i.e. Samba, rsync, Fabric</li>
+            </ul>
+            <p>*Required for Heroku to work</p>
+          </section>
+          <section>
+            <pre><code>
+              $: pip install django-storages boto
+            </code></pre>
+          </section>
+          <section>
+            <h2>Configuration</h2>
+            <p>Storages doesn't provide separate static and media locations for files in default configuration.</p>
+            <p>Create a s3utils package and add it to requirements.txt</p>
+            <ul>
+              <li>s3utils/
+                <ul>
+                  <li>s3utils/
+                    <ul>
+                      <li>__init__.py</li>
+                    </ul>
+                  </li>
+                  <li>setup.py</li>
+                </ul>
+              </li>
+            </ul>
+            <p>In __init__.py</p>
+            <pre><code>
+from storages.backends.s3boto import S3BotoStorage
+
+StaticRootS3BotoStorage = lambda: S3BotoStorage(location='static')
+MediaRootS3BotoStorage  = lambda: S3BotoStorage(location='media')
+            </code></pre>
+          </section>
+          <section>
+            <p>Store S3 keys in environment variables instead of on the filesystem.</p>
+            <pre><code>
+              $: export AWS_ACCESS_KEY_ID="..."
+              $: export AWS_SECRET_ACCESS_KEY="..."
+            </code></pre>
+          </section>
+          <section>
+            <pre><code>
+# Django Storages/S3 Settings
+DEFAULT_FILE_STORAGE = 's3utils.MediaRootS3BotoStorage'
+STATICFILES_STORAGE = 's3utils.StaticRootS3BotoStorage'
+
+# AWS Settings
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
+AWS_STORAGE_BUCKET_NAME = 'freesnakes'
+            </code></pre>
+          </section>
+          <section>
+            <h2>Configuration</h2>
+            <pre><code>
+STATIC_URL = "http://freesnakes.s3.amazonaws.com/"
+STATIC_ROOT = STATIC_URL
+MEDIA_URL = STATIC_URL + "media/"
+# MEDIA_ROOT = ...
+            </code></pre>
+          </section>
+          <section>
+            <h2>Test Default Storage</h2>
+            <pre><code>
+              >>> from django.core.files.storage import \
+                  default_storage
+              >>> print default_storage.connection
+              S3Connection:s3.amazonaws.com
+            </code></pre>
+          </section>
+          <section>
+            <h2>Filebrowser</h2>
+            <ul>
+              <li><a href="https://github.com/stephenmcd/mezzanine/issues/530">Doesn't work with S3</a></li>
+              <li>Solution: Uninstall</li>
+              <li>Mezzanine will use Django's default Image and File fields</li>
+            </ul>
+            <pre><code>
+              $: pip uninstall filebrowser-safe
+            </code></pre>
+          </section>
+          <section>
+            <h2>Warning</h2>
+            <p>Mezzanine will generate thumbnails automatically, so it may think they exist locally and will not generate them in S3. Use find to remove any local .thumbnail directories.</p>
+          </section>
+        </section>
+        <section>
+        <section>
+          <h1>Heroku</h1>
+          <ul>
+            <li>The original cloud platform</li>
+            <li>Now supports Python</li>
+            <li>"Unlimited", "Free" single application instances</li>
+          </ul>
+        </section>
+        <section>
+          <h2>Installation</h2>
+          <pre><code>
+            $: pip install psycopg2 dj-database-url
+          </code></pre>
+        </section>
+        <section>
+          <h2>Configuration</h2>
+          <p>In settings.py, above local settings</p>
+          <pre><code>
+# Parse database configuration from $DATABASE_URL
+import dj_database_url
+DATABASES['default'] =  dj_database_url.config()
+          </code></pre>
+        </section>
+        <section>
+          <p>Create a Procfile to tell Heroku how to run your application.</p>
+          <pre><code>
+web: python manage.py runserver 0.0.0.0:$PORT --noreload
+          </code></pre>
+        </section>
+        <section>
+          <p>Provide your S3 keys as environment variable to Heroku.</p>
+          <pre><code>
+$: heroku config:add AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
+          </code></pre>
+        </section>
+        <section>
+          <p>Add a post compile hook for Heroku to uninstall filebrowser every time you push.</p>
+          <p>In bin/post_compile</p>
+          <pre><code>
+#!/usr/bin/env bash
+
+# Uninstall filebrowser-safe to allow S3
+pip uninstall -y filebrowser-safe
+          </code></pre>
+        </section>
+        <section>
+          <h2>Deploy</h2>
+          <pre><code>
+            $: git init
+            $: git add .
+            $: git commit -a -m 'deploy to heroku'
+            $: git push heroku master
+          </code></pre>
+        </section>
+        <section>
+          <h2>Create the DB</h2>
+          <pre><code>
+            $: heroku run python manage.py createdb
+          </code></pre>
+          <p>Warning do not use the --noinput option.</p>
+        </section>
+        </section>
+        <section>
+          <h1>Tools</h1>
+          <ul>
+            <li>SublimeText2</li>
+            <li>Sentry</li>
+            <li>Virtualenvwrapper</li>
+            <li>Read The Docs</li>
+            <li>Reveal.js</li>
+          </ul>
+        </section>
+        <section>
+          <h3>Aleksandr Vladimirskiy</h3>
+          <h4>Butchershop Creative, San Francisco</h4>
+          <blockquote>&hellip; a small, boutique creative agency &hellip; but we have always done big things.<br>Our passion and expertise for the art of telling a story and solving problems pushes us to look at things from unique perspectives.</blockquote>
+          <p><a href="http://www.butchershop.co">http://www.butchershop.co</a></p>
+        </section>
+      </div>
+    </div>
+    <script src="lib/js/head.min.js"></script>
+    <script src="js/reveal.min.js"></script>
+    <script>
+      Reveal.initialize({
+        controls: true,
+        progress: true,
+        history: true,
+        center: true,
+        theme: Reveal.getQueryHash().theme, // available themes are in /css/theme
+        transition: Reveal.getQueryHash().transition || 'default', // default/cube/page/concave/zoom/linear/fade/none
+        // Optional libraries used to extend on reveal.js
+        dependencies: [
+          { src: 'lib/js/classList.js', condition: function() { return !document.body.classList; } },
+          { src: 'plugin/markdown/showdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/markdown/markdown.js', condition: function() { return !!document.querySelector( '[data-markdown]' ); } },
+          { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } },
+          { src: 'plugin/zoom-js/zoom.js', async: true, condition: function() { return !!document.body.classList; } },
+          { src: 'plugin/notes/notes.js', async: true, condition: function() { return !!document.body.classList; } }
+          // { src: 'plugin/remotes/remotes.js', async: true, condition: function() { return !!document.body.classList; } }
+        ]
+      });
+    </script>
+  </body>
+</html>

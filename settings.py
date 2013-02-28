@@ -345,6 +345,9 @@ DATABASES['default'] = dj_database_url.config()
 
 SENTRY_DSN = os.environ.get("SENTRY_DSN")
 
+# Required by Django 1.5 in production
+ALLOWED_HOSTS = [os.environ.get("ALLOWED_HOST")]
+
 ##################
 # LOCAL SETTINGS #
 ##################

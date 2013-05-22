@@ -14,3 +14,4 @@ Changelog
 0.0.2 Prepare to post on Github
 0.0.3 Update requirements for Mezzanine 1.4.2 and Django 1.4.5
 0.0.4 Update requirements for Mezzanine 1.4.3 and Django 1.5
+0.0.5 Update requirements for Mezzanine 1.4.7 and Django 1.5.1
